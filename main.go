@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"io"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -12,11 +13,13 @@ var excludeNames map[string]bool = map[string]bool{
 	".DS_Store":   true,
 	".vscode":     true,
 	"launch.json": true,
+	".git":        true,
+	"__debug_bin": true,
 }
 
-func getNameWithSize(baseName string, info os.FileInfo) (string, error) {
+func getNameWithSize(info os.FileInfo) (string, error) {
 	if info.IsDir() {
-		return baseName, nil
+		return info.Name(), nil
 	}
 
 	var fileSize string
@@ -26,14 +29,13 @@ func getNameWithSize(baseName string, info os.FileInfo) (string, error) {
 		fileSize = " (empty)"
 	}
 
-	return baseName + fileSize, nil
+	return info.Name() + fileSize, nil
 }
 
-func dirTree(out io.Writer, path string, printFiles bool) error {
+func dirTreeSecond(out io.Writer, path string, printFiles bool) error {
 	err := filepath.Walk(path, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
-			fmt.Printf("prevent panic by handling failure accessing a path %q: %v\n", path, err)
-			return err
+			return fmt.Errorf("Prevent panic by handling failure accessing a path %q: %v\n", path, err)
 		}
 		baseName := filepath.Base(path)
 		if _, inExcluded := excludeNames[baseName]; inExcluded {
@@ -49,9 +51,9 @@ func dirTree(out io.Writer, path string, printFiles bool) error {
 			prefix += "├───"
 		}
 
-		pointName, err := getNameWithSize(baseName, info)
+		pointName, err := getNameWithSize(info)
 		if err == nil {
-			fmt.Printf("%v%v\n", prefix, pointName)
+			fmt.Fprintf(out, "%v%v\n", prefix, pointName)
 		}
 		return nil
 	})
@@ -59,13 +61,50 @@ func dirTree(out io.Writer, path string, printFiles bool) error {
 	return err
 }
 
-func main() {
-	fmt.Println("\n\n\n")
-	out := os.Stdout
-	if !(len(os.Args) == 2 || len(os.Args) == 3) {
-		panic("usage go run main.go . [-f]")
+func dirTreeRecursive(out io.Writer, path string, printFiles bool, prefix string) error {
+
+	curprefix := prefix
+
+	dirContent, _ := ioutil.ReadDir(path)
+	// fmt.Fprint(out, "├───")
+
+	for idx := range dirContent {
+		flInfo := dirContent[idx]
+		prefix = curprefix + "├───"
+
+		if idx == len(dirContent) {
+			// по последнему файлу в директории ставим такой значок:
+			prefix = curprefix + "└───"
+		}
+		if _, inExcluded := excludeNames[flInfo.Name()]; inExcluded {
+			continue
+		}
+		nm, _ := getNameWithSize(flInfo)
+		fmt.Fprintf(out, "%v%v\n", prefix, nm)
+
+		if flInfo.IsDir() {
+			prefixToRecursive := curprefix + "|\t"
+			dirTreeRecursive(out, flInfo.Name(), printFiles, prefixToRecursive)
+		}
 	}
-	path := os.Args[1]
+
+	return nil
+}
+
+func dirTree(out io.Writer, path string, printFiles bool) error {
+	dirTreeRecursive(out, path, printFiles, "")
+	return nil
+}
+
+func main() {
+	out := os.Stdout
+	var path string
+	if !(len(os.Args) == 2 || len(os.Args) == 3) {
+		// panic("usage go run main.go . [-f]")
+		path = "."
+	} else {
+		path = os.Args[1]
+	}
 	printFiles := len(os.Args) == 3 && os.Args[2] == "-f"
 	err := dirTree(out, path, printFiles)
 	if err != nil {
