@@ -61,30 +61,61 @@ func dirTreeSecond(out io.Writer, path string, printFiles bool) error {
 	return err
 }
 
-func dirTreeRecursive(out io.Writer, path string, printFiles bool, prefix string) error {
+func findLastDirName(dirContent []os.FileInfo) string {
+	lastDirName := ""
+	for idx := range dirContent {
+		flInfo := dirContent[idx]
+		if flInfo.IsDir() {
+			lastDirName = flInfo.Name()
+		}
+	}
+	return lastDirName
+}
+
+func checkIsLast(idx int, dirContent []os.FileInfo, printFiles bool) bool {
+	isLast := false
+	if printFiles {
+		isLast = idx == len(dirContent)-1
+	} else {
+		flInfo := dirContent[idx]
+		if flInfo.Name() == findLastDirName(dirContent) {
+			isLast = true
+		}
+	}
+	return isLast
+}
+
+func dirTreeRecursive(out io.Writer, fullPath string, printFiles bool, prefix string) error {
 
 	curprefix := prefix
 
-	dirContent, _ := ioutil.ReadDir(path)
+	dirContent, _ := ioutil.ReadDir(fullPath)
 	// fmt.Fprint(out, "├───")
 
 	for idx := range dirContent {
 		flInfo := dirContent[idx]
-		prefix = curprefix + "├───"
+		var isLast bool
+		var prefixToRecursive string
+		isLast = checkIsLast(idx, dirContent, printFiles)
 
-		if idx == len(dirContent) {
+		if isLast {
 			// по последнему файлу в директории ставим такой значок:
 			prefix = curprefix + "└───"
+			prefixToRecursive = curprefix + "\t"
+		} else {
+			prefixToRecursive = curprefix + "|\t"
+			prefix = curprefix + "├───"
 		}
 		if _, inExcluded := excludeNames[flInfo.Name()]; inExcluded {
 			continue
 		}
 		nm, _ := getNameWithSize(flInfo)
-		fmt.Fprintf(out, "%v%v\n", prefix, nm)
 
 		if flInfo.IsDir() {
-			prefixToRecursive := curprefix + "|\t"
-			dirTreeRecursive(out, flInfo.Name(), printFiles, prefixToRecursive)
+			fmt.Fprintf(out, "%v%v\n", prefix, nm)
+			dirTreeRecursive(out, filepath.Join(fullPath, flInfo.Name()), printFiles, prefixToRecursive)
+		} else if !flInfo.IsDir() && printFiles {
+			fmt.Fprintf(out, "%v%v\n", prefix, nm)
 		}
 	}
 
@@ -106,6 +137,7 @@ func main() {
 		path = os.Args[1]
 	}
 	printFiles := len(os.Args) == 3 && os.Args[2] == "-f"
+	path, _ = filepath.Abs(path)
 	err := dirTree(out, path, printFiles)
 	if err != nil {
 		panic(err.Error())
