@@ -6,7 +6,6 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
-	"strings"
 )
 
 var excludeNames map[string]bool = map[string]bool{
@@ -30,35 +29,6 @@ func getNameWithSize(info os.FileInfo) (string, error) {
 	}
 
 	return info.Name() + fileSize, nil
-}
-
-func dirTreeSecond(out io.Writer, path string, printFiles bool) error {
-	err := filepath.Walk(path, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return fmt.Errorf("Prevent panic by handling failure accessing a path %q: %v\n", path, err)
-		}
-		baseName := filepath.Base(path)
-		if _, inExcluded := excludeNames[baseName]; inExcluded {
-			return nil
-		}
-
-		pathArr := strings.Split(path, string(os.PathSeparator))
-		pathLength := len(pathArr)
-		var prefix string = "├───"
-		if pathLength > 0 {
-			// fmt.Printf("pathLength: %v, path: %v\n", pathLength, path)
-			prefix = strings.Repeat("│  ", (pathLength - 1))
-			prefix += "├───"
-		}
-
-		pointName, err := getNameWithSize(info)
-		if err == nil {
-			fmt.Fprintf(out, "%v%v\n", prefix, pointName)
-		}
-		return nil
-	})
-
-	return err
 }
 
 func findLastDirName(dirContent []os.FileInfo) string {
@@ -90,7 +60,6 @@ func dirTreeRecursive(out io.Writer, fullPath string, printFiles bool, prefix st
 	curprefix := prefix
 
 	dirContent, _ := ioutil.ReadDir(fullPath)
-	// fmt.Fprint(out, "├───")
 
 	for idx := range dirContent {
 		flInfo := dirContent[idx]
