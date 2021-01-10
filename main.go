@@ -72,7 +72,7 @@ func dirTreeRecursive(out io.Writer, fullPath string, printFiles bool, prefix st
 			prefix = curprefix + "└───"
 			prefixToRecursive = curprefix + "\t"
 		} else {
-			prefixToRecursive = curprefix + "|\t"
+			prefixToRecursive = curprefix + "│\t"
 			prefix = curprefix + "├───"
 		}
 		if _, inExcluded := excludeNames[flInfo.Name()]; inExcluded {
